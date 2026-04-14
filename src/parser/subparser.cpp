@@ -63,13 +63,15 @@ void vmessConstruct(Proxy &node, const std::string &group, const std::string &re
     node.TLSSecure = tls == "tls";
 }
 
-void vlessConstruct(Proxy &node, const std::string &group, const std::string &remarks, const std::string &add, const std::string &port, const std::string &id, const std::string &flow, const std::string &net, const std::string &type, const std::string &path, const std::string &host, const std::string &security, const std::string &sni, const std::string &fp, const std::string &pbk, const std::string &sid, tribool udp, tribool tfo, tribool scv, const std::string& underlying_proxy)
+void vlessConstruct(Proxy &node, const std::string &group, const std::string &remarks, const std::string &add, const std::string &port, const std::string &id, const std::string &flow, const std::string &net, const std::string &type, const std::string &path, const std::string &host, const std::string &security, const std::string &sni, const std::string &fp, const std::string &pbk, const std::string &sid, const std::string &packet_encoding, tribool udp, tribool tfo, tribool scv, const std::string& underlying_proxy)
 {
     commonConstruct(node, ProxyType::VLESS, group, remarks, add, port, udp, tfo, scv, tribool(), underlying_proxy);
     node.UserId = id.empty() ? "00000000-0000-0000-0000-000000000000" : id;
     node.EncryptMethod = "none";
     node.TransferProtocol = net.empty() ? "tcp" : net;
     node.Flow = flow;
+    node.VLESSSecurity = security;
+    node.PacketEncoding = packet_encoding;
     node.ServerName = sni.empty() ? host : sni;
     node.Fingerprint = fp;
     node.PublicKey = pbk;
@@ -350,7 +352,7 @@ void explodeVmess(std::string vmess, Proxy &node)
 
 void explodeVless(std::string vless, Proxy &node)
 {
-    std::string remarks, add, port, id, flow, net, type, path, host, security, sni, fp, pbk, sid;
+    std::string remarks, add, port, id, flow, net, type, path, host, security, sni, fp, pbk, sid, packet_encoding;
     std::string url = regReplace(vless, "vless://", "");
 
     // 提取 remarks (fragment)
@@ -410,6 +412,9 @@ void explodeVless(std::string vless, Proxy &node)
     fp = params.count("fp") ? params["fp"] : "";
     pbk = params.count("pbk") ? params["pbk"] : "";
     sid = params.count("sid") ? params["sid"] : "";
+    packet_encoding = params.count("packetEncoding") ? params["packetEncoding"] : "";
+    if(packet_encoding.empty() && params.count("packet-encoding"))
+        packet_encoding = params["packet-encoding"];
 
     // 传输协议相关参数
     if(net == "ws")
@@ -439,14 +444,14 @@ void explodeVless(std::string vless, Proxy &node)
 
     add = trim(add);
 
-    vlessConstruct(node, V2RAY_DEFAULT_GROUP, remarks, add, port, id, flow, net, type, path, host, security, sni, fp, pbk, sid, tribool(), tribool(), tribool(), "");
+    vlessConstruct(node, V2RAY_DEFAULT_GROUP, remarks, add, port, id, flow, net, type, path, host, security, sni, fp, pbk, sid, packet_encoding, tribool(), tribool(), tribool(), "");
 }
 
 void explodeVlessConf(std::string content, std::vector<Proxy> &nodes)
 {
     Document json;
     rapidjson::Value nodejson, settings;
-    std::string group, ps, add, port, type, id, flow, net, path, host, security, sni, fp, pbk, sid;
+    std::string group, ps, add, port, type, id, flow, net, path, host, security, sni, fp, pbk, sid, packet_encoding;
     tribool udp, tfo, scv;
     uint32_t index = nodes.size();
 
@@ -565,7 +570,7 @@ void explodeVlessConf(std::string content, std::vector<Proxy> &nodes)
                 }
 
                 ps = add + ":" + port;
-                vlessConstruct(node, V2RAY_DEFAULT_GROUP, ps, add, port, id, flow, net, type, path, host, security, sni, fp, pbk, sid, udp, tfo, scv, "");
+                vlessConstruct(node, V2RAY_DEFAULT_GROUP, ps, add, port, id, flow, net, type, path, host, security, sni, fp, pbk, sid, packet_encoding, udp, tfo, scv, "");
                 node.Id = index;
                 nodes.emplace_back(std::move(node));
                 index++;
@@ -1634,13 +1639,14 @@ void explodeClash(Node yamlnode, std::vector<Proxy> &nodes)
         case "vless"_hash:
         {
             group = V2RAY_DEFAULT_GROUP;
-            std::string flow, fp, pbk, sid, security;
+            std::string flow, fp, pbk, sid, security, packet_encoding;
 
             singleproxy["uuid"] >>= id;
             singleproxy["flow"] >>= flow;
             net = singleproxy["network"].IsDefined() ? safe_as<std::string>(singleproxy["network"]) : "tcp";
             singleproxy["servername"] >>= sni;
             singleproxy["client-fingerprint"] >>= fp;
+            singleproxy["packet-encoding"] >>= packet_encoding;
 
             // 传输协议参数
             switch(hash_(net))
@@ -1685,7 +1691,7 @@ void explodeClash(Node yamlnode, std::vector<Proxy> &nodes)
                 security = "none";
             }
 
-            vlessConstruct(node, group, ps, server, port, id, flow, net, "", path, host, security, sni, fp, pbk, sid, udp, tfo, scv, underlying_proxy);
+            vlessConstruct(node, group, ps, server, port, id, flow, net, "", path, host, security, sni, fp, pbk, sid, packet_encoding, udp, tfo, scv, underlying_proxy);
             break;
         }
 
@@ -2228,7 +2234,7 @@ bool explodeSurge(std::string surge, std::vector<Proxy> &nodes)
                 }
             }
 
-            vlessConstruct(node, V2RAY_DEFAULT_GROUP, remarks, server, port, id, flow, "tcp", "", "", sni, security, sni, fp, pbk, sid, udp, tfo, scv, "");
+            vlessConstruct(node, V2RAY_DEFAULT_GROUP, remarks, server, port, id, flow, "tcp", "", "", sni, security, sni, fp, pbk, sid, "", udp, tfo, scv, "");
             break;
         }
         case "http"_hash: //http proxy

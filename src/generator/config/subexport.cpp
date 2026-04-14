@@ -457,6 +457,8 @@ void proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode, const ProxyGr
         case ProxyType::VLESS:
             singleproxy["type"] = "vless";
             singleproxy["uuid"] = x.UserId;
+            if(!x.TransferProtocol.empty())
+                singleproxy["network"] = x.TransferProtocol;
             if(!x.Flow.empty())
                 singleproxy["flow"] = x.Flow;
             if(x.TLSSecure)
@@ -465,12 +467,14 @@ void proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode, const ProxyGr
                 singleproxy["servername"] = x.ServerName;
             if(!x.Fingerprint.empty())
                 singleproxy["client-fingerprint"] = x.Fingerprint;
+            if(!x.PacketEncoding.empty())
+                singleproxy["packet-encoding"] = x.PacketEncoding;
             if(!scv.is_undef())
                 singleproxy["skip-cert-verify"] = scv.get();
             else
                 singleproxy["skip-cert-verify"] = false;
 
-            if(x.FakeType == "reality")
+            if(x.VLESSSecurity == "reality")
             {
                 singleproxy["reality-opts"]["public-key"] = x.PublicKey;
                 if(!x.ShortId.empty())
@@ -1141,7 +1145,7 @@ std::string vlessLinkConstruct(const Proxy &node)
     if(!node.Path.empty())
         params.push_back("path=" + urlEncode(node.Path));
     
-    if(node.FakeType == "reality")
+    if(node.VLESSSecurity == "reality")
     {
         params.push_back("security=reality");
         if(!node.PublicKey.empty())
@@ -1157,6 +1161,8 @@ std::string vlessLinkConstruct(const Proxy &node)
         params.push_back("sni=" + urlEncode(node.ServerName));
     if(!node.Fingerprint.empty())
         params.push_back("fp=" + urlEncode(node.Fingerprint));
+    if(!node.PacketEncoding.empty())
+        params.push_back("packetEncoding=" + urlEncode(node.PacketEncoding));
     if (!node.Flow.empty())
         params.push_back("flow=" + urlEncode(node.Flow));
 
@@ -2630,7 +2636,7 @@ void proxyToSingBox(std::vector<Proxy> &nodes, rapidjson::Document &json, std::v
                 tls.AddMember("server_name", rapidjson::StringRef(x.Host.c_str()), allocator);
             tls.AddMember("insecure", buildBooleanValue(scv), allocator);
 
-            if (x.FakeType == "reality")
+            if (x.VLESSSecurity == "reality")
             {
                 rapidjson::Value reality(rapidjson::kObjectType);
                 reality.AddMember("enabled", true, allocator);
